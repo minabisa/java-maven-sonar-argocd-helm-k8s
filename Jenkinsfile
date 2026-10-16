@@ -2,7 +2,7 @@
 pipeline {
     agent {
         docker {
-            image 'minabisa90/maven-abhishek-docker-agent:v1'
+            image 'abhishekf5/maven-abhishek-docker-agent:v1'
             args '-v /var/run/docker.sock:/var/run/docker.sock'
             reuseNode true
         }
@@ -14,13 +14,11 @@ pipeline {
     }
 
     environment {
-    APP_DIR = '.'
-    DOCKERFILE = 'src/Dockerfile'
-    MANIFEST = 'spring-boot-app-manifests/deployment.yml'
-
-    DOCKER_REPO = 'minabisa90/ultimate-cicd'
-    GIT_BRANCH = 'main'
-}
+        DOCKER_REPO = 'minabisa90/ultimate-cicd'
+        MANIFEST = 'spring-boot-app-manifests/deployment.yml'
+        GIT_REPO = 'minabisa/java-maven-sonar-argocd-helm-k8s'
+        GIT_BRANCH = 'main'
+    }
 
     stages {
 
@@ -32,53 +30,40 @@ pipeline {
         }
 
         stage('Build and Test') {
-    steps {
-        sh 'mvn clean verify'
-    }
-}
-
-stage('Build Docker Image') {
-    steps {
-        sh '''
-            docker build \
-              -f src/Dockerfile \
-              -t minabisa90/ultimate-cicd:${BUILD_NUMBER} \
-              .
-        '''
-    }
-}
+            steps {
+                sh 'mvn -B clean verify'
+            }
+        }
 
         stage('Static Code Analysis') {
             steps {
-                dir("${APP_DIR}") {
-                    withSonarQubeEnv('SonarQube') {
-                        sh '''
-                            mvn -B sonar:sonar \
-                              -Dsonar.projectKey=hello-cicd
-                        '''
-                    }
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        mvn -B sonar:sonar \
+                          -Dsonar.projectKey=hello-cicd
+                    '''
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
+                timeout(time: 10, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
             }
         }
 
         stage('Build Docker Image') {
-    steps {
-        sh '''
-            docker build \
-              -f src/Dockerfile \
-              -t ${DOCKER_REPO}:${BUILD_NUMBER} \
-              .
-        '''
-    }
-}
+            steps {
+                sh '''
+                    docker build \
+                      -f src/Dockerfile \
+                      -t ${DOCKER_REPO}:${BUILD_NUMBER} \
+                      .
+                '''
+            }
+        }
 
         stage('Push Docker Image') {
             steps {
@@ -91,6 +76,7 @@ stage('Build Docker Image') {
                 ]) {
                     sh '''
                         set +x
+
                         echo "$DOCKER_TOKEN" | docker login \
                           -u "$DOCKER_USER" \
                           --password-stdin
@@ -116,38 +102,14 @@ stage('Build Docker Image') {
                         set -eu
                         set +x
 
-                        git config user.email "YOUR_EMAIL"
-                        git config user.name "YOUR_NAME"
+                        git config user.email "YOUR_GITHUB_EMAIL"
+                        git config user.name "minabisa"
 
-                        python3 - <<'PY'
-import os
-import re
-from pathlib import Path
+                        sed -i -E \
+                          's|image: minabisa90/ultimate-cicd:[^[:space:]]+|image: minabisa90/ultimate-cicd:'"${BUILD_NUMBER}"'|' \
+                          "$MANIFEST"
 
-path = Path(os.environ["MANIFEST"])
-text = path.read_text()
-repository = os.environ["DOCKER_REPO"]
-tag = os.environ["BUILD_NUMBER"]
-
-pattern = (
-    r"(?m)^(\\s*image:\\s*)"
-    + re.escape(repository)
-    + r":[^\\s]+"
-)
-
-updated, count = re.subn(
-    pattern,
-    lambda m: m.group(1) + repository + ":" + tag,
-    text
-)
-
-if count != 1:
-    raise SystemExit(
-        f"Expected one matching image, found {count}"
-    )
-
-path.write_text(updated)
-PY
+                        grep 'image:' "$MANIFEST"
 
                         git add "$MANIFEST"
 
@@ -157,10 +119,10 @@ PY
                         fi
 
                         git commit -m \
-                          "ci: deploy image ${BUILD_NUMBER}"
+                          "ci: update image to ${BUILD_NUMBER} [skip ci]"
 
                         AUTH=$(printf '%s:%s' \
-                          "$GIT_USER" "$GIT_TOKEN" | base64 -w0)
+                          "$GIT_USER" "$GIT_TOKEN" | base64 | tr -d '\\n')
 
                         git -c \
                           http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" \
@@ -176,19 +138,15 @@ PY
     post {
         success {
             echo 'CI pipeline completed successfully.'
-            echo 'Argo CD can now sync the GitOps changes.'
+            echo 'Argo CD can now synchronize the GitOps changes.'
         }
 
         failure {
-            echo 'Pipeline failed. Check the Jenkins stage logs.'
+            echo 'Pipeline failed. Check the Jenkins console output.'
         }
 
         always {
             cleanWs()
         }
     }
-
-    sed -i -E \
-  "s|(image: minabisa90/ultimate-cicd:)[^[:space:]]+|\1${BUILD_NUMBER}|" \
-  spring-boot-app-manifests/deployment.yml
 }
