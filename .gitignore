@@ -1,0 +1,24 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+.terraform.lock.hcl
+
+# Java / Maven
+target/
+*.class
+*.log
+
+# Credentials
+.env
+.env.*
+*.pem
+*.key
+**/secrets.yaml
+
+# IDE / macOS
+.DS_Store
+.vscode/
+.idea/
