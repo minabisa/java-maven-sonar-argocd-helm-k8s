@@ -1,12 +1,12 @@
 
 pipeline {
     agent {
-        docker {
-            image 'abhishekf5/maven-abhishek-docker-agent:v1'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-            reuseNode true
-        }
+    docker {
+        image 'maven:3.9-eclipse-temurin-17'
+        args '-v /var/run/docker.sock:/var/run/docker.sock'
+        reuseNode true
     }
+}
 
     options {
         timestamps()
@@ -30,10 +30,15 @@ pipeline {
         }
 
         stage('Build and Test') {
-            steps {
-                sh 'mvn -B clean verify'
-            }
-        }
+    steps {
+        sh '''
+            java -version
+            javac -version
+            mvn -version
+            mvn clean verify
+        '''
+    }
+}
 
         stage('Static Code Analysis') {
             steps {
