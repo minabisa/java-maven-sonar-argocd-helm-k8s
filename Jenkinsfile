@@ -41,7 +41,7 @@ pipeline {
 }
 stage('Static Code Analysis') {
     steps {
-        withSonarQubeEnv('SonarQube') {
+        withSonarQubeEnv('sonarqube') {
             sh '''
                 mkdir -p "$WORKSPACE/.sonar"
 
