@@ -12,8 +12,17 @@ spec:
       labels:
         app: spring-boot-app
     spec:
+<<<<<<< HEAD
     containers:
       - name: spring-boot-app
         image: minabisa90/ultimate-cicd:12
         ports:
           - containerPort: 8080
+=======
+      containers:
+        - name: spring-boot-app
+          image: minabisa90/ultimate-cicd:12
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+>>>>>>> a821b8c (fix: add container specification to Kubernetes deployment)
