@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: spring-boot-app
-          image: minabisa90/ultimate-cicd:15
+          image: minabisa90/ultimate-cicd:16
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
