@@ -63,15 +63,20 @@ stage('Static Code Analysis') {
         }
 
         stage('Build Docker Image') {
-            steps {
-                sh '''
-                    docker build \
-                      -f src/Dockerfile \
-                      -t ${DOCKER_REPO}:${BUILD_NUMBER} \
-                      .
-                '''
-            }
+    agent {
+        docker {
+            image 'docker:27-cli'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+            reuseNode true
         }
+    }
+    steps {
+        sh '''
+            docker version
+            docker build -f src/Dockerfile -t ${DOCKER_REPO}:${BUILD_NUMBER} .
+        '''
+    }
+}
 
         stage('Push Docker Image') {
             steps {
