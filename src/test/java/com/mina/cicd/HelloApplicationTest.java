@@ -11,7 +11,7 @@ class HelloApplicationTest {
         HelloApplication app = new HelloApplication();
 
         assertEquals(
-            "hello CI/CD with mina bisa",
+            "Hello from Jenkins CI/CD Pipeline - Version 2!",
             app.hello()
         );
     }
