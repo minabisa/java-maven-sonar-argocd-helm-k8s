@@ -16,6 +16,6 @@ public class HelloApplication {
 
     @GetMapping("/")
     public String hello() {
-        return "hello CI/CD with mina bisa";
+        return "Hello from Jenkins CI/CD Pipeline - Version 2!";
     }
 }
