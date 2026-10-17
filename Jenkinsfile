@@ -42,7 +42,7 @@ pipeline {
 
         stage('Static Code Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
+                withSonarQubeEnv('sonarqube') {
                     sh '''
                         mvn -B sonar:sonar \
                           -Dsonar.projectKey=hello-cicd
