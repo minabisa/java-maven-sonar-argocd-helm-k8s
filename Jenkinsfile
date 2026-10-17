@@ -39,17 +39,17 @@ pipeline {
         '''
     }
 }
-
-        stage('Static Code Analysis') {
-            steps {
-                withSonarQubeEnv('sonarqube') {
-                    sh '''
-                        mvn -B sonar:sonar \
-                          -Dsonar.projectKey=hello-cicd
-                    '''
-                }
-            }
+stage('Static Code Analysis') {
+    steps {
+        withSonarQubeEnv('sonarqube') {
+            sh '''
+                mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                  -Dsonar.projectKey=hello-cicd
+            '''
         }
+    }
+}
+        
 
         stage('Quality Gate') {
             steps {
