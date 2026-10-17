@@ -41,10 +41,13 @@ pipeline {
 }
 stage('Static Code Analysis') {
     steps {
-        withSonarQubeEnv('sonarqube') {
+        withSonarQubeEnv('SonarQube') {
             sh '''
-                mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-                  -Dsonar.projectKey=hello-cicd
+                mkdir -p "$WORKSPACE/.sonar"
+
+                mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \
+                  -Dsonar.projectKey=hello-cicd \
+                  -Dsonar.userHome="$WORKSPACE/.sonar"
             '''
         }
     }
