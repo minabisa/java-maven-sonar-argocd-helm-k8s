@@ -1,12 +1,6 @@
 
 pipeline {
-    agent {
-    docker {
-        image 'maven:3.9-eclipse-temurin-17'
-        args '-v /var/run/docker.sock:/var/run/docker.sock'
-        reuseNode true
-    }
-}
+    agent any
 
     options {
         timestamps()
@@ -21,7 +15,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -30,29 +23,36 @@ pipeline {
         }
 
         stage('Build and Test') {
-    steps {
-        sh '''
-            java -version
-            javac -version
-            mvn -version
-            mvn clean verify
-        '''
-    }
-}
-stage('Static Code Analysis') {
-    steps {
-        withSonarQubeEnv('sonarqube') {
-            sh '''
-                mkdir -p "$WORKSPACE/.sonar"
-
-                mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \
-                  -Dsonar.projectKey=hello-cicd \
-                  -Dsonar.userHome="$WORKSPACE/.sonar"
-            '''
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-17'
+                    reuseNode true
+                }
+            }
+            steps {
+                sh 'mvn -B clean verify'
+            }
         }
-    }
-}
-        
+
+        stage('Static Code Analysis') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-17'
+                    reuseNode true
+                }
+            }
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    sh '''
+                        mkdir -p "$WORKSPACE/.sonar"
+
+                        mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \
+                          -Dsonar.projectKey=hello-cicd \
+                          -Dsonar.userHome="$WORKSPACE/.sonar"
+                    '''
+                }
+            }
+        }
 
         stage('Quality Gate') {
             steps {
@@ -63,39 +63,25 @@ stage('Static Code Analysis') {
         }
 
         stage('Build Docker Image') {
-    agent {
-        docker {
-            image 'docker:27-cli'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-            reuseNode true
+            steps {
+                sh '''
+                    docker version
+                    docker build -f src/Dockerfile -t ${DOCKER_REPO}:${BUILD_NUMBER} .
+                '''
+            }
         }
-    }
-    steps {
-        sh '''
-            docker version
-            docker build -f src/Dockerfile -t ${DOCKER_REPO}:${BUILD_NUMBER} .
-        '''
-    }
-}
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'docker-cred',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_TOKEN'
-                    )
-                ]) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-cred',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_TOKEN'
+                )]) {
                     sh '''
                         set +x
-
-                        echo "$DOCKER_TOKEN" | docker login \
-                          -u "$DOCKER_USER" \
-                          --password-stdin
-
+                        echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USER" --password-stdin
                         docker push ${DOCKER_REPO}:${BUILD_NUMBER}
-
                         docker logout
                     '''
                 }
@@ -104,13 +90,11 @@ stage('Static Code Analysis') {
 
         stage('Update GitOps Manifest') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'github-cred',
-                        usernameVariable: 'GIT_USER',
-                        passwordVariable: 'GIT_TOKEN'
-                    )
-                ]) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-cred',
+                    usernameVariable: 'GIT_USER',
+                    passwordVariable: 'GIT_TOKEN'
+                )]) {
                     sh '''
                         set -eu
                         set +x
@@ -118,30 +102,20 @@ stage('Static Code Analysis') {
                         git config user.email "YOUR_GITHUB_EMAIL"
                         git config user.name "minabisa"
 
-                        sed -i -E \
-                          's|image: minabisa90/ultimate-cicd:[^[:space:]]+|image: minabisa90/ultimate-cicd:'"${BUILD_NUMBER}"'|' \
-                          "$MANIFEST"
-
-                        grep 'image:' "$MANIFEST"
+                        sed -i -E 's|image: minabisa90/ultimate-cicd:[^[:space:]]+|image: minabisa90/ultimate-cicd:'"${BUILD_NUMBER}"'|' "$MANIFEST"
 
                         git add "$MANIFEST"
 
                         if git diff --cached --quiet; then
-                            echo "No manifest changes"
                             exit 0
                         fi
 
-                        git commit -m \
-                          "ci: update image to ${BUILD_NUMBER} [skip ci]"
+                        git commit -m "ci: update image to ${BUILD_NUMBER} [skip ci]"
 
-                        AUTH=$(printf '%s:%s' \
-                          "$GIT_USER" "$GIT_TOKEN" | base64 | tr -d '\\n')
+                        AUTH=$(printf '%s:%s' "$GIT_USER" "$GIT_TOKEN" | base64 | tr -d '\\n')
 
-                        git -c \
-                          http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" \
-                          push \
-                          "https://github.com/${GIT_REPO}.git" \
-                          HEAD:${GIT_BRANCH}
+                        git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" \
+                            push "https://github.com/${GIT_REPO}.git" HEAD:${GIT_BRANCH}
                     '''
                 }
             }
@@ -151,13 +125,10 @@ stage('Static Code Analysis') {
     post {
         success {
             echo 'CI pipeline completed successfully.'
-            echo 'Argo CD can now synchronize the GitOps changes.'
         }
-
         failure {
-            echo 'Pipeline failed. Check the Jenkins console output.'
+            echo 'Pipeline failed.'
         }
-
         always {
             cleanWs()
         }
